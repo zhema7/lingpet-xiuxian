@@ -186,6 +186,7 @@ export class PetSprite {
   private behavior: 'idle' | 'walk' | 'interact' = 'idle';
   private interactAction: string = '';
   private awayMode: boolean = false;    // 召唤外出
+  private summonSparks: any[] = [];     // 飞升光球的尾焰
 
   /** 当前渲染模式: 'spritesheet' | 'fallback'（供状态徽标显示） */
   /** 最近一次精灵图加载失败原因（供徽标显示） */
@@ -284,11 +285,13 @@ export class PetSprite {
       case 'futon':  g.ellipse(0, y0, 22, 8).fill(0x8d6e63).ellipse(0, y0 - 3, 18, 6).fill(0xa1887f); break;
       case 'desk':   g.rect(-20, y0 - 14, 40, 5).fill(0x795548).rect(-18, y0 - 9, 4, 12).fill(0x5d4037).rect(14, y0 - 9, 4, 12).fill(0x5d4037).rect(-6, y0 - 20, 12, 6).fill(0xd7ccc8); break;
       case 'lamp':   g.rect(-1, y0 - 22, 2, 22).fill(0x5d4037).ellipse(0, y0 - 26, 7, 8).fill(0xffd54f).ellipse(0, y0 - 26, 10, 11).fill({ color: 0xffd54f, alpha: 0.25 }); break;
-      case 'bed':    g.rect(-24, y0 - 8, 48, 8).fill(0x90caf9).rect(-24, y0 - 14, 12, 6).fill(0xffffff).rect(-24, y0, 4, 4).fill(0x5d4037).rect(20, y0, 4, 4).fill(0x5d4037); break;
+      case 'bed':    g.rect(-26, y0 - 12, 52, 12).fill(0x5d4037).rect(-24, y0 - 18, 48, 7).fill(0x90caf9).rect(-22, y0 - 21, 14, 5).fill(0xffffff).rect(4, y0 - 19, 18, 8).fill(0x4fc3f7).rect(-26, y0 - 4, 4, 4).fill(0x4e342e).rect(22, y0 - 4, 4, 4).fill(0x4e342e); break;
       case 'furnace': g.ellipse(0, y0 - 8, 14, 10).fill(0x8d6e63).rect(-3, y0 - 24, 6, 8).fill(0x6d4c41).ellipse(0, y0 - 2, 6, 4).fill(0xff8f00); break;
       case 'tree':   g.rect(-2, y0 - 16, 4, 16).fill(0x5d4037).ellipse(0, y0 - 24, 14, 10).fill(0x66bb6a).ellipse(-3, y0 - 26, 2.5, 2.5).fill(0xef5350).ellipse(5, y0 - 22, 2.5, 2.5).fill(0xef5350); break;
       default: g.rect(-8, y0 - 8, 16, 8).fill(0x9e9e9e);
     }
+    // 窄面板里家具太小会看不清，整体放大
+    g.scale.set(1.35);
     return g;
   }
 
@@ -361,8 +364,9 @@ export class PetSprite {
     const startY = this.container.y;
     let t = 0;
     const orb = new Graphics();
+    orb.ellipse(0, 0, 42, 42).fill({ color: 0xffd54f, alpha: 0.10 });
+    orb.ellipse(0, 0, 26, 26).fill({ color: 0xffe57f, alpha: 0.24 });
     orb.ellipse(0, 0, 14, 14).fill({ color: 0xfff6c8, alpha: 0.95 });
-    orb.ellipse(0, 0, 22, 22).fill({ color: 0xffd54f, alpha: 0.35 });
     orb.x = this.container.x;
     orb.y = startY - 20;
     orb.alpha = 0;
@@ -380,13 +384,30 @@ export class PetSprite {
         this.container.visible = false;
         orb.alpha = 1;
       }
-      // 光球上升
+      // 光球上升 + 尾焰
       if (t >= 30) {
         orb.y -= 2.2 * d;
-        orb.scale.set(1 + Math.sin(t * 0.3) * 0.1);
+        orb.x += Math.sin(t * 0.12) * 0.4 * d;
+        orb.scale.set(1 + Math.sin(t * 0.3) * 0.08);
+        if (Math.floor(t) % 2 === 0) {
+          const spark = new Graphics();
+          spark.circle(0, 0, 1.5 + Math.random() * 2).fill({ color: 0xffe57f, alpha: 0.85 });
+          spark.x = orb.x + (Math.random() - 0.5) * 20;
+          spark.y = orb.y + 12;
+          this.app.stage.addChild(spark);
+          this.summonSparks.push(spark);
+        }
+        for (let i = this.summonSparks.length - 1; i >= 0; i--) {
+          const s = this.summonSparks[i];
+          s.y += 1.4 * d;
+          s.alpha -= 0.025 * d;
+          if (s.alpha <= 0.02) { s.destroy(); this.summonSparks.splice(i, 1); }
+        }
         if (orb.y < -40) {
           this.app.ticker.remove(anim);
           orb.destroy();
+          this.summonSparks.forEach(s => s.destroy());
+          this.summonSparks = [];
           onDone();
         }
       }

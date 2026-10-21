@@ -301,7 +301,7 @@
     .tool-furniture{border-color:#4fd8ff;color:#bfe9ff;background:rgba(79,216,255,0.14);}
     .tool-summon{border-color:#ffd54f;color:#ffe9a8;background:rgba(255,213,79,0.14);}
     .tool-recall{border-color:#b388ff;color:#d9c8ff;background:rgba(179,136,255,0.14);}
-    #dock-tap{position:absolute;right:2px;top:-15px;font-size:10px;color:#7ee787;opacity:.85;}
+    #dock-tap{position:absolute;right:2px;top:-15px;font-size:10px;color:#7ee787;opacity:0;transition:opacity .35s;pointer-events:none;}
     .shop-item{display:flex;align-items:center;gap:8px;padding:8px 6px;border-bottom:1px solid rgba(79,216,255,0.12);color:#cfe8ff;font-size:12px;}
     .shop-item.disabled{opacity:0.5;}
     .shop-emoji{font-size:18px;}
@@ -336,7 +336,11 @@
     function tap(label) {
       taps++;
       var t = byId('dock-tap');
-      if (t) t.textContent = label + ' · 已响应 ' + taps;
+      if (!t) return;
+      t.textContent = label + ' · 已响应 ' + taps;
+      t.style.opacity = '0.9';
+      clearTimeout(tap._t);
+      tap._t = setTimeout(function () { t.style.opacity = '0'; }, 2200);
     }
     function refresh() {
       var list = byId('furniture-list');

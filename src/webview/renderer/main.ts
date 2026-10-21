@@ -136,7 +136,11 @@ async function init(): Promise<void> {
     const resize = (): void => {
       if (!app) return;
       app.renderer.resize(window.innerWidth, window.innerHeight);
-      if (pet instanceof PetSprite) pet.resize();
+      if (pet instanceof PetSprite) {
+        pet.resize();
+        // 地面线固定在面板高度 62% 处，家具与灵兽贴地，避免下半屏空白
+        pet.setSpaceGround(Math.round(app.screen.height * 0.62));
+      }
     };
     window.addEventListener('resize', resize);
 
@@ -150,8 +154,7 @@ async function init(): Promise<void> {
     canvas.addEventListener('contextmenu', (e) => { e.preventDefault(); pet?.setAction('look_around'); });
     console.log('[LingPet] PixiJS 渲染器初始化成功');
     setRenderBadge('像素渲染中...');
-    // 灵兽袋空间: 地面线 + 游走
-    pet.setSpaceGround(app.screen.height / 2 + 20);
+    // 灵兽袋空间: 地面线由 resize() 统一设置
     pet.setFurniture(currentState?.furniture || ['futon']);
     // 虚空气旋背景
     startVoidBackground(app);
@@ -162,11 +165,13 @@ async function init(): Promise<void> {
       badgeBase = mode === 'spritesheet' ? '✅ 像素精灵图'
         : `⚠️ 程序化像素（PNG失败: ${err ? err.slice(0, 50) : '未知'}）`;
     });
-    // 实时几何诊断: 每秒刷新 画布尺寸/宠物坐标/帧序号
+    // 实时几何诊断: 默认只在异常时显示，URL 带 ?debug 时全程显示
+    const debugUi = /(^|[?&])debug/.test(location.search) || location.hash === '#debug';
     setInterval(() => {
       const ps = pet as PetSprite;
       const furn = (currentState?.furniture || ['futon']).length;
       const fErr = ps.furnitureError ? ` ⚠️家具:${ps.furnitureError.slice(0, 30)}` : '';
+      if (!debugUi && badgeBase.includes('✅') && !fErr) { setRenderBadge(''); return; }
       setRenderBadge(`${badgeBase || '加载中'} | ${ps.getDebugInfo ? ps.getDebugInfo() : '...'} 家具:${furn}${fErr}`);
     }, 1000);
   } catch (e: any) {
@@ -381,6 +386,10 @@ function showToast(message: string, type: 'success' | 'error' | 'warning' = 'suc
 // 常驻渲染模式徽标（左下角，诊断用）
 function setRenderBadge(text: string): void {
   let badge = document.getElementById('render-badge');
+  if (!text) {
+    if (badge) badge.style.display = 'none';
+    return;
+  }
   if (!badge) {
     badge = document.createElement('div');
     badge.id = 'render-badge';
@@ -390,6 +399,7 @@ function setRenderBadge(text: string): void {
       + 'box-shadow:0 2px 8px rgba(0,0,0,0.6);';
     document.getElementById('app')?.appendChild(badge);
   }
+  badge.style.display = 'block';
   badge.textContent = `🐾 ${text}`;
 }
 

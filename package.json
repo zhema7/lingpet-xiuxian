@@ -5,6 +5,10 @@
   "version": "0.3.1",
   "publisher": "lingpet",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zhema7/lingpet-xiuxian.git"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
