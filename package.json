@@ -1,0 +1,114 @@
+{
+  "name": "lingpet-xiuxian",
+  "displayName": "修仙灵兽 LingPet",
+  "description": "修仙题材灵兽宠物，随 TRAE/VS Code 使用成长进阶，编辑器事件采集灵气，智能体页面自动弹出。",
+  "version": "0.3.1",
+  "publisher": "lingpet",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other", "Visualization", "Entertainment"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      { "command": "lingpet.showPet",       "title": "🐾 LingPet: 召唤灵兽" },
+      { "command": "lingpet.manualBoost",   "title": "🐾 LingPet: 主动打坐 (+20灵气)" },
+      { "command": "lingpet.refinePill",    "title": "🐾 LingPet: 炼丹 (20灵石)" },
+      { "command": "lingpet.refreshUsage",  "title": "🐾 LingPet: 查看灵气采集统计" },
+      { "command": "lingpet.toggleAutoPanel","title": "🐾 LingPet: 切换 Chat 自动弹出" },
+      { "command": "lingpet.openShop",      "title": "🐾 LingPet: 灵石商店" },
+      { "command": "lingpet.openAchievements", "title": "🐾 LingPet: 查看成就" },
+      { "command": "lingpet.openQuests",     "title": "🐾 LingPet: 日常任务" },
+      { "command": "lingpet.feedPet",        "title": "🐾 LingPet: 喂食灵兽" },
+      { "command": "lingpet.setTraeToken",   "title": "🐾 LingPet: 设置 TRAE JWT Token（读取真实积分）" },
+      { "command": "lingpet.queryTraeCredits","title": "🐾 LingPet: 查询 TRAE 真实积分消耗" },
+      { "command": "lingpet.showDesktopPet","title": "🐾 LingPet: 召唤桌面灵兽" },
+      { "command": "lingpet.hideDesktopPet","title": "🐾 LingPet: 收回桌面灵兽" }
+    ],
+    "configuration": {
+      "title": "LingPet 修仙灵兽",
+      "properties": {
+        "lingpet.autoShowOnChat": {
+          "type": "boolean", "default": true,
+          "description": "TRAE Chat 智能体页面激活时自动弹出灵兽面板",
+          "scope": "application"
+        },
+        "lingpet.usagePollInterval": {
+          "type": "number", "default": 10,
+          "description": "灵气打坐增长间隔（分钟）",
+          "scope": "application"
+        },
+        "lingpet.creditsPollInterval": {
+          "type": "number", "default": 5,
+          "description": "TRAE 真实积分查询间隔（分钟，需要先设置 JWT Token）",
+          "scope": "application"
+        },
+        "lingpet.systemMonitorEnabled": {
+          "type": "boolean", "default": true,
+          "description": "是否开启系统资源监控（CPU/内存）",
+          "scope": "application"
+        },
+        "lingpet.systemMonitorInterval": {
+          "type": "number", "default": 5,
+          "description": "系统监控间隔（秒）",
+          "scope": "application"
+        },
+        "lingpet.cpuAlertThreshold": {
+          "type": "number", "default": 90,
+          "description": "CPU 告警阈值（百分比）",
+          "scope": "application"
+        },
+        "lingpet.memoryAlertThreshold": {
+          "type": "number", "default": 90,
+          "description": "内存告警阈值（百分比）",
+          "scope": "application"
+        },
+        "lingpet.stockEnabled": {
+          "type": "boolean", "default": false,
+          "description": "是否开启股市行情",
+          "scope": "application"
+        },
+        "lingpet.stockSymbols": {
+          "type": "array", "default": [],
+          "description": "自选股代码（如 sh600519）",
+          "scope": "application"
+        },
+        "lingpet.petType": {
+          "type": "string", "default": "tihun",
+          "enum": ["tihun", "mojiao", "liuyi"],
+          "description": "灵兽种类：tihun(啼魂)、mojiao(墨蛟)、liuyi(六翼霜蜈)",
+          "scope": "application"
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        { "id": "lingpet", "title": "修仙灵兽", "icon": "resources/icons/paw.svg" }
+      ]
+    },
+    "views": {
+      "lingpet": [
+        { "type": "webview", "id": "lingpet.petView", "name": "灵兽" }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node esbuild.config.js && npm run build:webview",
+    "build:webview": "node esbuild.config.webview.js",
+    "watch": "node esbuild.config.js --watch",
+    "watch:webview": "node esbuild.config.webview.js --watch",
+    "lint": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.20.0",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "pixi.js": "^8.0.0"
+  }
+}

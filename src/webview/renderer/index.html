@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src {{CSP_SOURCE}} data: https:; style-src 'unsafe-inline' {{CSP_SOURCE}}; script-src 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' {{CSP_SOURCE}} blob:; connect-src {{CSP_SOURCE}} data: blob:;">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>修仙灵兽 LingPet</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+      color: #e0e0e0;
+      user-select: none;
+    }
+    #app { width: 100%; height: 100%; position: relative; }
+    #pixi-canvas { display: block; width: 100%; height: 100%; position: absolute; inset: 0; z-index: 0; }
+
+    /* 顶部状态栏 */
+    .status-bar {
+      position: absolute; top: 0; left: 0; right: 0;
+      padding: 8px 12px;
+      background: rgba(0,0,0,0.4);
+      backdrop-filter: blur(8px);
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 12px; z-index: 10;
+    }
+    .status-bar .pet-info { display: flex; gap: 12px; align-items: center; }
+    .status-bar .pet-name { font-weight: bold; color: #ffd700; font-size: 14px; }
+    .status-bar .realm { color: #7fdbff; }
+    .status-bar .level { color: #ff851b; }
+    .status-bar .resources { display: flex; gap: 10px; }
+    .status-bar .res-item { display: flex; align-items: center; gap: 4px; }
+    .status-bar .res-icon { font-size: 14px; }
+
+    /* 灵气进度条 */
+    .energy-bar {
+      position: absolute; top: 40px; left: 12px; right: 12px;
+      height: 8px; background: rgba(255,255,255,0.1);
+      border-radius: 4px; overflow: hidden; z-index: 10;
+    }
+    .energy-bar .fill {
+      height: 100%; background: linear-gradient(90deg, #7fdbff, #2ecc71);
+      transition: width 0.3s; border-radius: 4px;
+    }
+    .energy-bar .label {
+      position: absolute; top: -16px; left: 0; font-size: 10px; color: #aaa;
+    }
+
+    /* 说话气泡 */
+    .speech-bubble {
+      position: absolute;
+      background: rgba(255,255,255,0.95);
+      color: #333;
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-size: 13px;
+      max-width: 260px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      z-index: 20;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 0.3s, transform 0.3s;
+      pointer-events: none;
+    }
+    .speech-bubble.show { opacity: 1; transform: translateY(0); }
+    .speech-bubble::after {
+      content: '';
+      position: absolute; bottom: -8px; left: 30px;
+      border: 8px solid transparent;
+      border-top-color: rgba(255,255,255,0.95);
+    }
+
+    /* 底部操作栏 */
+    .action-bar {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      padding: 10px;
+      background: rgba(0,0,0,0.4);
+      backdrop-filter: blur(8px);
+      display: flex; justify-content: center; gap: 8px;
+      z-index: 10;
+    }
+    .action-btn {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: #e0e0e0;
+      padding: 6px 14px;
+      border-radius: 16px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: all 0.2s;
+    }
+    .action-btn:hover { background: rgba(255,255,255,0.25); transform: translateY(-1px); }
+
+    /* 弹层面板（商店/成就/任务） */
+    .modal {
+      position: absolute; inset: 0;
+      background: rgba(0,0,0,0.7);
+      display: none; align-items: center; justify-content: center;
+      z-index: 50;
+    }
+    .modal.show { display: flex; }
+    .modal-content {
+      background: #1e1e2e; border: 1px solid #444;
+      border-radius: 12px; padding: 20px;
+      width: 85%; max-width: 480px; max-height: 80vh;
+      overflow-y: auto;
+    }
+    .modal-content h3 {
+      color: #ffd700; margin-bottom: 16px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .modal-content .close-btn {
+      background: none; border: none; color: #888;
+      font-size: 20px; cursor: pointer;
+    }
+    .modal-content .close-btn:hover { color: #fff; }
+    .item-list { display: flex; flex-direction: column; gap: 8px; }
+    .item-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px; background: rgba(255,255,255,0.05);
+      border-radius: 8px;
+    }
+    .item-row .item-info { flex: 1; }
+    .item-row .item-name { font-weight: bold; color: #7fdbff; }
+    .item-row .item-desc { font-size: 11px; color: #999; margin-top: 2px; }
+    .item-row .buy-btn {
+      background: #ff851b; border: none; color: #fff;
+      padding: 4px 12px; border-radius: 12px; cursor: pointer;
+      font-size: 11px;
+    }
+    .item-row .buy-btn:hover { background: #ff6b00; }
+    .item-row .buy-btn:disabled { background: #555; cursor: not-allowed; }
+
+    .achievement-item {
+      padding: 10px; background: rgba(255,255,255,0.05);
+      border-radius: 8px; margin-bottom: 8px;
+    }
+    .achievement-item.unlocked { border-left: 3px solid #ffd700; }
+    .achievement-item.locked { opacity: 0.5; }
+    .achievement-item .ach-name { font-weight: bold; }
+    .achievement-item .ach-desc { font-size: 11px; color: #999; }
+
+    .quest-item {
+      padding: 10px; background: rgba(255,255,255,0.05);
+      border-radius: 8px; margin-bottom: 8px;
+    }
+    .quest-item .quest-name { font-weight: bold; color: #2ecc71; }
+    .quest-item .quest-progress {
+      height: 6px; background: #333; border-radius: 3px;
+      margin: 6px 0; overflow: hidden;
+    }
+    .quest-item .quest-progress .fill {
+      height: 100%; background: #2ecc71; transition: width 0.3s;
+    }
+    .quest-item .claim-btn {
+      background: #2ecc71; border: none; color: #fff;
+      padding: 4px 12px; border-radius: 12px; cursor: pointer;
+      font-size: 11px;
+    }
+    .quest-item .claim-btn:disabled { background: #555; cursor: not-allowed; }
+
+    /* 通知 toast */
+    .toast {
+      position: absolute; top: 60px; left: 50%;
+      transform: translateX(-50%);
+      background: rgba(46, 204, 113, 0.95);
+      color: #fff; padding: 10px 20px;
+      border-radius: 20px; font-size: 13px;
+      z-index: 100; opacity: 0;
+      transition: opacity 0.3s, top 0.3s;
+      pointer-events: none;
+    }
+    .toast.show { opacity: 1; top: 70px; }
+    .toast.error { background: rgba(231, 76, 60, 0.95); }
+    .toast.warning { background: rgba(241, 196, 15, 0.95); color: #333; }
+
+    /* 进阶特效覆盖层 */
+    .evolve-overlay {
+      position: absolute; inset: 0;
+      background: radial-gradient(circle, rgba(255,215,0,0.3) 0%, rgba(0,0,0,0) 70%);
+      display: none; align-items: center; justify-content: center;
+      z-index: 80; pointer-events: none;
+    }
+    .evolve-overlay.show { display: flex; animation: evolveFlash 2s ease-out; }
+    .evolve-overlay .evolve-text {
+      font-size: 32px; font-weight: bold; color: #ffd700;
+      text-shadow: 0 0 20px rgba(255,215,0,0.8);
+    }
+    @keyframes evolveFlash {
+      0% { opacity: 0; }
+      30% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <canvas id="pixi-canvas"></canvas>
+
+    <!-- 顶部状态栏 -->
+    <div class="status-bar">
+      <div class="pet-info">
+        <span class="pet-name" id="pet-name">啼魂</span>
+        <span class="realm" id="pet-realm">炼气期·初阶</span>
+        <span class="level">Lv.<span id="pet-level">1</span></span>
+      </div>
+      <div class="resources">
+        <div class="res-item"><span class="res-icon">💎</span><span id="spirit-stones">0</span></div>
+        <div class="res-item"><span class="res-icon">❤️</span><span id="affinity">0</span></div>
+      </div>
+    </div>
+
+    <!-- 灵气进度条 -->
+    <div class="energy-bar">
+      <span class="label">灵气 <span id="energy-text">0 / 100</span></span>
+      <div class="fill" id="energy-fill" style="width: 0%"></div>
+    </div>
+
+    <!-- 说话气泡 -->
+    <div class="speech-bubble" id="speech-bubble"></div>
+
+    <!-- 底部操作栏 -->
+    <div class="action-bar">
+      <button class="action-btn" data-action="feed">🍖 喂食</button>
+      <button class="action-btn" data-action="pet">🖐️ 摸头</button>
+      <button class="action-btn" data-action="shop">🛒 商店</button>
+      <button class="action-btn" data-action="quest">📜 任务</button>
+      <button class="action-btn" data-action="achievement">🏆 成就</button>
+      <button class="action-btn" data-action="checkin">📅 签到</button>
+    </div>
+
+    <!-- 商店面板 -->
+    <div class="modal" id="shop-modal">
+      <div class="modal-content">
+        <h3>🛒 灵石商店 <button class="close-btn" data-close="shop-modal">×</button></h3>
+        <div class="item-list" id="shop-list"></div>
+      </div>
+    </div>
+
+    <!-- 成就面板 -->
+    <div class="modal" id="achievement-modal">
+      <div class="modal-content">
+        <h3>🏆 成就 <button class="close-btn" data-close="achievement-modal">×</button></h3>
+        <div id="achievement-list"></div>
+      </div>
+    </div>
+
+    <!-- 任务面板 -->
+    <div class="modal" id="quest-modal">
+      <div class="modal-content">
+        <h3>📜 日常任务 <button class="close-btn" data-close="quest-modal">×</button></h3>
+        <div id="quest-list"></div>
+      </div>
+    </div>
+
+    <!-- 进阶特效 -->
+    <div class="evolve-overlay" id="evolve-overlay">
+      <div class="evolve-text" id="evolve-text">突破！</div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+  </div>
+
+  <script type="module" src="./main.ts"></script>
+  <!-- 灵兽袋工具栏：横跨整行，位于动作条上方 -->
+  <div id="space-bar">
+    <button class="tool-btn tool-furniture" id="btn-furniture" onclick="window.__lpUI.furniture()">🪑 家具布置</button>
+    <button class="tool-btn tool-summon" id="btn-summon" onclick="window.__lpUI.summon()">🌟 召唤桌面</button>
+    <button class="tool-btn tool-recall" id="btn-recall" onclick="window.__lpUI.recall()">🌙 召回袋中</button>
+    <span id="dock-tap">待命</span>
+  </div>
+  <!-- 外出遮罩 -->
+  <div id="away-overlay" style="display:none;position:absolute;inset:0;background:rgba(10,10,20,0.75);z-index:8000;flex-direction:column;align-items:center;justify-content:center;gap:12px;">
+    <div style="font-size:34px;">✨</div>
+    <div style="color:#ffe9a8;font-size:14px;">灵兽已化为灵光，降临桌面护法</div>
+    <button id="btn-recall-2" onclick="window.__lpUI.recall()" style="background:rgba(179,136,255,0.2);border:1px solid #b388ff;color:#d9c8ff;border-radius:6px;padding:6px 14px;font-size:13px;cursor:pointer;">召回灵兽袋</button>
+  </div>
+  <!-- 破境门槛提示 -->
+  <div id="gate-hint" style="display:none;position:absolute;left:8px;bottom:8px;max-width:60%;background:rgba(255,80,80,0.15);border:1px solid #ff6b6b;color:#ffb3b3;border-radius:6px;padding:4px 8px;font-size:11px;z-index:50;"></div>
+  <!-- 家具商店 -->
+  <div id="furniture-shop" style="display:none;position:absolute;inset:0;background:rgba(8,8,16,0.55);z-index:9500;flex-direction:column;align-items:center;justify-content:flex-end;padding-bottom:64px;">
+    <div style="width:90%;max-height:52%;background:#141428;border:1px solid #4fd8ff;border-radius:10px;padding:14px;overflow-y:auto;box-shadow:0 0 18px rgba(79,216,255,0.35);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <span style="color:#bfe9ff;font-size:15px;">🪑 灵兽袋家具</span>
+        <button id="furniture-shop-close" style="background:none;border:none;color:#9ad;font-size:16px;cursor:pointer;">✖</button>
+      </div>
+      <div id="furniture-list"></div>
+    </div>
+  </div>
+  <style>
+    #space-bar{position:absolute;left:8px;right:8px;bottom:58px;display:flex;gap:6px;z-index:9000;}
+    .tool-btn{flex:1;padding:8px 4px;font-size:12px;font-weight:600;border-radius:8px;cursor:pointer;
+      border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.06);color:#dbe9ff;
+      transition:transform .12s, filter .12s;pointer-events:auto;white-space:nowrap;}
+    .tool-btn:hover{transform:translateY(-1px);filter:brightness(1.3);}
+    .tool-btn:active{transform:scale(.96);}
+    .tool-furniture{border-color:#4fd8ff;color:#bfe9ff;background:rgba(79,216,255,0.14);}
+    .tool-summon{border-color:#ffd54f;color:#ffe9a8;background:rgba(255,213,79,0.14);}
+    .tool-recall{border-color:#b388ff;color:#d9c8ff;background:rgba(179,136,255,0.14);}
+    #dock-tap{position:absolute;right:2px;top:-15px;font-size:10px;color:#7ee787;opacity:.85;}
+    .shop-item{display:flex;align-items:center;gap:8px;padding:8px 6px;border-bottom:1px solid rgba(79,216,255,0.12);color:#cfe8ff;font-size:12px;}
+    .shop-item.disabled{opacity:0.5;}
+    .shop-emoji{font-size:18px;}
+    .shop-name{width:52px;color:#ffe9a8;}
+    .shop-desc{flex:1;color:#8fb8d8;}
+    .shop-buy{background:rgba(255,213,79,0.18);border:1px solid #ffd54f;color:#ffe9a8;border-radius:5px;padding:3px 8px;cursor:pointer;font-size:11px;}
+    .shop-buy:disabled{opacity:0.4;cursor:not-allowed;}
+    .shop-owned{color:#7ee787;font-size:11px;}
+    .shop-empty{color:#8fb8d8;font-size:12px;padding:12px 4px;}
+  </style>
+
+  <!-- 工具栏交互（纯内联脚本，不依赖打包产物，保证一定可点） -->
+  <script>
+  (function () {
+    var CATALOG = [
+      { id: 'desk',    name: '木桌',   emoji: '🪑', price: 200,  desc: '伏案研读功法' },
+      { id: 'lamp',    name: '灵灯',   emoji: '🏮', price: 300,  desc: '暖光一盏' },
+      { id: 'bed',     name: '云床',   emoji: '🛏️', price: 500,  desc: '安眠养神' },
+      { id: 'furnace', name: '丹炉',   emoji: '⚗️', price: 800,  desc: '炼丹开炉' },
+      { id: 'tree',    name: '灵果树', emoji: '🌳', price: 1000, desc: '结出灵果' }
+    ];
+    var ST = window.__lpState || { furniture: ['futon'], spiritStones: 0 };
+    var taps = 0;
+    function byId(id) { return document.getElementById(id); }
+    function show(el, on) { if (el) el.style.display = on ? 'flex' : 'none'; }
+    function post(m) {
+      var api = window.__lpApi;
+      if (api && api.postMessage) { api.postMessage(m); return true; }
+      console.warn('[LingPet] 扩展通道未就绪，消息未发送', m);
+      return false;
+    }
+    function tap(label) {
+      taps++;
+      var t = byId('dock-tap');
+      if (t) t.textContent = label + ' · 已响应 ' + taps;
+    }
+    function refresh() {
+      var list = byId('furniture-list');
+      if (!list) return;
+      var owned = {}, stones = 0;
+      try {
+        ST = window.__lpState || ST;
+        stones = ST.spiritStones || 0;
+        (ST.furniture || ['futon']).forEach(function (f) { owned[f] = 1; });
+      } catch (e) {}
+      var html = '';
+      for (var i = 0; i < CATALOG.length; i++) {
+        var f = CATALOG[i];
+        var has = !!owned[f.id];
+        var afford = stones >= f.price;
+        var cls = 'shop-item' + (has ? ' owned' : (afford ? '' : ' disabled'));
+        html += '<div class="' + cls + '">'
+          + '<span class="shop-emoji">' + f.emoji + '</span>'
+          + '<span class="shop-name">' + f.name + '</span>'
+          + '<span class="shop-desc">' + f.desc + '</span>'
+          + (has ? '<span class="shop-owned">已布置</span>'
+                 : '<button class="shop-buy" data-fid="' + f.id + '"' + (afford ? '' : ' disabled') + '>' + f.price + ' 灵石</button>')
+          + '</div>';
+      }
+      list.innerHTML = html;
+      var buys = list.querySelectorAll('.shop-buy');
+      for (var k = 0; k < buys.length; k++) {
+        buys[k].onclick = function (ev) {
+          ev.stopPropagation();
+          var fid = this.getAttribute('data-fid');
+          tap('购买' + fid);
+          post({ type: 'buyFurniture', id: fid });
+        };
+      }
+    }
+    window.__lpUI = {
+      furniture: function () {
+        tap('家具');
+        refresh();
+        show(byId('furniture-shop'), true);
+      },
+      closeShop: function () { show(byId('furniture-shop'), false); },
+      summon: function () {
+        tap('召唤');
+        post({ type: 'summonDesktop' });
+        var done = function () { show(byId('away-overlay'), true); };
+        if (typeof window.__lpPetSummon === 'function') window.__lpPetSummon(done);
+        else done();
+      },
+      recall: function () {
+        tap('召回');
+        post({ type: 'recallDesktop' });
+        show(byId('away-overlay'), false);
+        if (typeof window.__lpPetRecall === 'function') window.__lpPetRecall();
+      },
+      refresh: refresh,
+      setState: function (s) { ST = s || ST; window.__lpState = ST; refresh(); }
+    };
+    document.addEventListener('click', function (e) {
+      var t = e.target;
+      while (t && t !== document.body) {
+        if (t.id === 'furniture-shop-close') { window.__lpUI.closeShop(); return; }
+        t = t.parentNode;
+      }
+    }, true);
+    // 布置成功 → 刷新清单并自动收面板，让用户立刻看到画布上的家具
+    window.addEventListener('message', function (e) {
+      var m = e.data;
+      if (!m || m.type !== 'furnitureBought') return;
+      refresh();
+      window.__lpUI.closeShop();
+    });
+    // 点空白处关闭商店
+    (function () {
+      var shop = byId('furniture-shop');
+      if (shop) shop.addEventListener('click', function (e) {
+        if (e.target === shop) window.__lpUI.closeShop();
+      });
+    })();
+    console.log('[LingPet] 工具栏脚本已就绪');
+  })();
+  </script>
+</body>
+</html>
